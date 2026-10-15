@@ -1,9 +1,11 @@
 package ru.vsu.cs.nagajcev_a_a.tests;
 
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.ClassOrderer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestClassOrder;
 import ru.vsu.cs.nagajcev_a_a.repeat.NDayRepeat;
 import ru.vsu.cs.nagajcev_a_a.repeat.RepeatRule;
 
@@ -14,12 +16,14 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@TestClassOrder(ClassOrderer.OrderAnnotation.class)
 @DisplayName("NDayRepeat")
 class NDayRepeatTest {
 
     private static final LocalDate START = LocalDate.of(2025, 3, 10);
 
     @Nested
+    @Order(1)
     @DisplayName("Базовое поведение")
     class Basic {
 
@@ -64,6 +68,7 @@ class NDayRepeatTest {
     }
 
     @Nested
+    @Order(2)
     @DisplayName("Краевые случаи календаря")
     class CalendarEdges {
 
@@ -101,13 +106,13 @@ class NDayRepeatTest {
     }
 
     @Nested
+    @Order(3)
     @DisplayName("Границы и исключения")
     class Boundaries {
 
         @Test
         @DisplayName("Произведение повтора на интервал больше int не переполняется")
         void noIntOverflow() {
-            // 100_000 * 100_000 = 10^10, which overflows int but fits in long
             RepeatRule rule = new NDayRepeat(100_000);
 
             assertEquals(START.plusDays(10_000_000_000L), rule.calculateNextDate(START, 100_000));

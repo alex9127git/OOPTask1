@@ -3,7 +3,6 @@ package ru.vsu.cs.nagajcev_a_a.event;
 import java.time.LocalDate;
 import java.util.Objects;
 
-
 public abstract class Event {
     private String name;
     private String description;
