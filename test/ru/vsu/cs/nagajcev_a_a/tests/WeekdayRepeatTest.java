@@ -156,7 +156,7 @@ class WeekdayRepeatTest {
         @Test
         @DisplayName("День недели null отклоняется")
         void nullWeekdayRejected() {
-            assertThrows(IllegalArgumentException.class, () -> new WeekdayRepeat((DayOfWeek) null));
+            assertThrows(NullPointerException.class, () -> new WeekdayRepeat((DayOfWeek) null));
         }
 
         @Test
@@ -171,6 +171,16 @@ class WeekdayRepeatTest {
                     () -> assertThrows(IllegalArgumentException.class,
                             () -> multiple.calculateNextDate(START, Integer.MIN_VALUE))
             );
+        }
+
+        @Test
+        @DisplayName("Дата null отклоняется с NullPointerException и понятным сообщением")
+        void nullDateRejected() {
+            RepeatRule rule = new WeekdayRepeat(DayOfWeek.MONDAY);
+
+            NullPointerException exception = assertThrows(NullPointerException.class,
+                    () -> rule.calculateNextDate(null, 0));
+            assertEquals("Дата не может быть равна null", exception.getMessage());
         }
     }
 
@@ -408,8 +418,8 @@ class WeekdayRepeatTest {
         @DisplayName("Массив null и null внутри массива отклоняются")
         void nullArrayOrElementRejected() {
             assertAll(
-                    () -> assertThrows(InvalidRepeatRuleException.class, () -> new WeekdayRepeat((DayOfWeek[]) null)),
-                    () -> assertThrows(InvalidRepeatRuleException.class,
+                    () -> assertThrows(NullPointerException.class, () -> new WeekdayRepeat((DayOfWeek[]) null)),
+                    () -> assertThrows(NullPointerException.class,
                             () -> new WeekdayRepeat(new DayOfWeek[] {DayOfWeek.MONDAY, null}))
             );
         }

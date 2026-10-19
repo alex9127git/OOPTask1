@@ -218,5 +218,15 @@ class NYearRepeatTest {
                             () -> rule.calculateNextDate(START, Integer.MIN_VALUE))
             );
         }
+
+        @Test
+        @DisplayName("Дата null отклоняется с NullPointerException и понятным сообщением")
+        void nullDateRejected() {
+            RepeatRule rule = new NYearRepeat(1);
+
+            NullPointerException exception = assertThrows(NullPointerException.class,
+                    () -> rule.calculateNextDate(null, 0));
+            assertEquals("Дата не может быть равна null", exception.getMessage());
+        }
     }
 }

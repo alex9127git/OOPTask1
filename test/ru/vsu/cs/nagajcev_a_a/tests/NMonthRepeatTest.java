@@ -14,10 +14,7 @@ import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.YearMonth;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @TestClassOrder(ClassOrderer.OrderAnnotation.class)
 @DisplayName("NMonthRepeat")
@@ -221,7 +218,7 @@ class NMonthRepeatTest {
                     LocalDate first = rule.calculateNextDate(start, 0);
                     String context = "day " + dayNumber + ", start " + start;
 
-                    assertTrue(!first.isBefore(start), context + " -> " + first);
+                    assertFalse(first.isBefore(start), context + " -> " + first);
                     YearMonth firstMonth = YearMonth.from(first);
                     assertTrue(firstMonth.equals(YearMonth.from(start))
                             || firstMonth.equals(YearMonth.from(start).plusMonths(1)), context + " -> " + first);
@@ -302,6 +299,16 @@ class NMonthRepeatTest {
                     () -> assertThrows(IllegalArgumentException.class,
                             () -> rule.calculateNextDate(START, Integer.MIN_VALUE))
             );
+        }
+
+        @Test
+        @DisplayName("Дата null отклоняется с NullPointerException и понятным сообщением")
+        void nullDateRejected() {
+            RepeatRule rule = new NMonthRepeat(15);
+
+            NullPointerException exception = assertThrows(NullPointerException.class,
+                    () -> rule.calculateNextDate(null, 0));
+            assertEquals("Дата не может быть равна null", exception.getMessage());
         }
     }
 }

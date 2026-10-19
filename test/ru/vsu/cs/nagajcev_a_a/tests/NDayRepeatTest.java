@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestClassOrder;
-import ru.vsu.cs.nagajcev_a_a.repeat.InvalidRepeatRuleException;
 import ru.vsu.cs.nagajcev_a_a.repeat.NDayRepeat;
 import ru.vsu.cs.nagajcev_a_a.repeat.RepeatRule;
 import ru.vsu.cs.nagajcev_a_a.repeat.WeekdayRepeat;
@@ -194,6 +193,16 @@ class NDayRepeatTest {
                     () -> assertThrows(IllegalArgumentException.class,
                             () -> rule.calculateNextDate(START, Integer.MIN_VALUE))
             );
+        }
+
+        @Test
+        @DisplayName("Дата null отклоняется с NullPointerException и понятным сообщением")
+        void nullDateRejected() {
+            RepeatRule rule = new NDayRepeat(3);
+
+            NullPointerException exception = assertThrows(NullPointerException.class,
+                    () -> rule.calculateNextDate(null, 0));
+            assertEquals("Дата не может быть равна null", exception.getMessage());
         }
     }
 }
