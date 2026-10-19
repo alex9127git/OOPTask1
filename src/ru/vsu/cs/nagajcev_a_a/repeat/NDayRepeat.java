@@ -12,6 +12,7 @@ public class NDayRepeat implements RepeatRule {
 
     @Override
     public LocalDate calculateNextDate(LocalDate date, int repeat) {
+        if (repeat < 0) throw new IllegalArgumentException("Аргумент repeat не может быть отрицательным");
         return date.plusDays((long) repeat * daysInterval);
     }
 }

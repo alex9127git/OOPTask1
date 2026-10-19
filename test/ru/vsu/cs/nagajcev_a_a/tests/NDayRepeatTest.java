@@ -6,8 +6,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestClassOrder;
+import ru.vsu.cs.nagajcev_a_a.repeat.InvalidRepeatRuleException;
 import ru.vsu.cs.nagajcev_a_a.repeat.NDayRepeat;
 import ru.vsu.cs.nagajcev_a_a.repeat.RepeatRule;
+import ru.vsu.cs.nagajcev_a_a.repeat.WeekdayRepeat;
 
 import java.time.DateTimeException;
 import java.time.LocalDate;
@@ -103,10 +105,57 @@ class NDayRepeatTest {
 
             assertEquals(LocalDate.of(2023, 3, 1), rule.calculateNextDate(LocalDate.of(2023, 2, 28), 1));
         }
+
+        @Test
+        @DisplayName("365 дней от 29 февраля попадают на 28 февраля следующего года")
+        void yearOfDaysFromLeapDay() {
+            RepeatRule rule = new NDayRepeat(365);
+
+            assertEquals(LocalDate.of(2025, 2, 28), rule.calculateNextDate(LocalDate.of(2024, 2, 29), 1));
+        }
+
+        @Test
+        @DisplayName("365 дней через високосный год сдвигают дату на день назад")
+        void yearOfDaysAcrossLeapYear() {
+            RepeatRule rule = new NDayRepeat(365);
+
+            assertEquals(LocalDate.of(2024, 12, 31), rule.calculateNextDate(LocalDate.of(2024, 1, 1), 1));
+        }
     }
 
     @Nested
     @Order(3)
+    @DisplayName("Согласованность с другими правилами")
+    class Consistency {
+
+        @Test
+        @DisplayName("Шаг на repeat + 1 совпадает с шагом на 1 от вхождения номер repeat")
+        void stepFromOccurrenceMatchesStepFromStart() {
+            RepeatRule rule = new NDayRepeat(4);
+
+            for (int i = 0; i < 50; i++) {
+                LocalDate occurrence = rule.calculateNextDate(START, i);
+
+                assertEquals(rule.calculateNextDate(START, i + 1), rule.calculateNextDate(occurrence, 1),
+                        "repeat #" + i);
+            }
+        }
+
+        @Test
+        @DisplayName("Интервал 7 дней совпадает с повтором по дню недели начальной даты")
+        void weeklyIntervalMatchesWeekdayRepeat() {
+            RepeatRule everySevenDays = new NDayRepeat(7);
+            RepeatRule weekly = new WeekdayRepeat(START.getDayOfWeek());
+
+            for (int i = 0; i < 60; i++) {
+                assertEquals(weekly.calculateNextDate(START, i), everySevenDays.calculateNextDate(START, i),
+                        "repeat #" + i);
+            }
+        }
+    }
+
+    @Nested
+    @Order(4)
     @DisplayName("Границы и исключения")
     class Boundaries {
 
@@ -132,6 +181,18 @@ class NDayRepeatTest {
             assertAll(
                     () -> assertThrows(IllegalArgumentException.class, () -> new NDayRepeat(0)),
                     () -> assertThrows(IllegalArgumentException.class, () -> new NDayRepeat(-1))
+            );
+        }
+
+        @Test
+        @DisplayName("Отрицательный repeat отклоняется")
+        void negativeRepeatRejected() {
+            RepeatRule rule = new NDayRepeat(3);
+
+            assertAll(
+                    () -> assertThrows(IllegalArgumentException.class, () -> rule.calculateNextDate(START, -1)),
+                    () -> assertThrows(IllegalArgumentException.class,
+                            () -> rule.calculateNextDate(START, Integer.MIN_VALUE))
             );
         }
     }

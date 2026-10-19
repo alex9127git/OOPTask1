@@ -142,9 +142,35 @@ class WeekdayRepeatTest {
         }
 
         @Test
+        @DisplayName("repeat = Integer.MAX_VALUE не переполняет индекс дня в цикле")
+        void maxRepeatDoesNotOverflowCycleIndex() {
+            RepeatRule rule = new WeekdayRepeat(
+                    new DayOfWeek[] {DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY});
+            LocalDate wednesday = LocalDate.of(2025, 3, 12);
+            int fullCycles = Integer.MAX_VALUE / 3;
+            LocalDate firstFriday = LocalDate.of(2025, 3, 14);
+
+            assertEquals(firstFriday.plusWeeks(fullCycles), rule.calculateNextDate(wednesday, Integer.MAX_VALUE));
+        }
+
+        @Test
         @DisplayName("День недели null отклоняется")
         void nullWeekdayRejected() {
             assertThrows(IllegalArgumentException.class, () -> new WeekdayRepeat((DayOfWeek) null));
+        }
+
+        @Test
+        @DisplayName("Отрицательный repeat отклоняется для одного и нескольких дней недели")
+        void negativeRepeatRejected() {
+            RepeatRule single = new WeekdayRepeat(DayOfWeek.MONDAY);
+            RepeatRule multiple = new WeekdayRepeat(new DayOfWeek[] {DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY});
+
+            assertAll(
+                    () -> assertThrows(IllegalArgumentException.class, () -> single.calculateNextDate(START, -1)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> multiple.calculateNextDate(START, -1)),
+                    () -> assertThrows(IllegalArgumentException.class,
+                            () -> multiple.calculateNextDate(START, Integer.MIN_VALUE))
+            );
         }
     }
 
@@ -177,6 +203,72 @@ class WeekdayRepeatTest {
                     () -> assertEquals(LocalDate.of(2025, 3, 17), rule.calculateNextDate(tuesday, 1)),
                     () -> assertEquals(LocalDate.of(2025, 3, 20), rule.calculateNextDate(tuesday, 2))
             );
+        }
+
+        @Test
+        @DisplayName("Начальная дата после всех выбранных дней переходит на следующую неделю")
+        void startAfterAllSelectedDaysWrapsToNextWeek() {
+            RepeatRule rule = new WeekdayRepeat(new DayOfWeek[] {DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY});
+            LocalDate saturday = LocalDate.of(2025, 3, 15);
+
+            assertAll(
+                    () -> assertEquals(LocalDate.of(2025, 3, 17), rule.calculateNextDate(saturday, 0)),
+                    () -> assertEquals(LocalDate.of(2025, 3, 19), rule.calculateNextDate(saturday, 1)),
+                    () -> assertEquals(LocalDate.of(2025, 3, 24), rule.calculateNextDate(saturday, 2)),
+                    () -> assertEquals(LocalDate.of(2025, 3, 26), rule.calculateNextDate(saturday, 3))
+            );
+        }
+
+        @Test
+        @DisplayName("Воскресенье как начальная дата при выбранных пн/пт")
+        void sundayStartWithMondayAndFriday() {
+            RepeatRule rule = new WeekdayRepeat(new DayOfWeek[] {DayOfWeek.MONDAY, DayOfWeek.FRIDAY});
+            LocalDate sunday = LocalDate.of(2025, 3, 16);
+
+            assertAll(
+                    () -> assertEquals(LocalDate.of(2025, 3, 17), rule.calculateNextDate(sunday, 0)),
+                    () -> assertEquals(LocalDate.of(2025, 3, 21), rule.calculateNextDate(sunday, 1)),
+                    () -> assertEquals(LocalDate.of(2025, 3, 24), rule.calculateNextDate(sunday, 2))
+            );
+        }
+
+        @Test
+        @DisplayName("С любого дня недели даты строго возрастают, попадают на выбранные дни и не пропускают их")
+        void everyStartWeekdayProducesConsecutiveSelectedDays() {
+            RepeatRule rule = new WeekdayRepeat(new DayOfWeek[] {DayOfWeek.TUESDAY, DayOfWeek.THURSDAY});
+
+            for (int offset = 0; offset < 7; offset++) {
+                LocalDate start = START.plusDays(offset);
+                LocalDate expected = start;
+                while (expected.getDayOfWeek() != DayOfWeek.TUESDAY && expected.getDayOfWeek() != DayOfWeek.THURSDAY) {
+                    expected = expected.plusDays(1);
+                }
+
+                for (int i = 0; i < 20; i++) {
+                    assertEquals(expected, rule.calculateNextDate(start, i), "start " + start + ", repeat #" + i);
+                    do {
+                        expected = expected.plusDays(1);
+                    } while (expected.getDayOfWeek() != DayOfWeek.TUESDAY
+                            && expected.getDayOfWeek() != DayOfWeek.THURSDAY);
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("Шаг на repeat + 1 совпадает с шагом на 1 от вхождения номер repeat")
+        void stepFromOccurrenceMatchesStepFromStart() {
+            RepeatRule rule = new WeekdayRepeat(
+                    new DayOfWeek[] {DayOfWeek.MONDAY, DayOfWeek.THURSDAY, DayOfWeek.SATURDAY});
+
+            for (int offset = 0; offset < 7; offset++) {
+                LocalDate start = START.plusDays(offset);
+                for (int i = 0; i < 20; i++) {
+                    LocalDate occurrence = rule.calculateNextDate(start, i);
+
+                    assertEquals(rule.calculateNextDate(start, i + 1), rule.calculateNextDate(occurrence, 1),
+                            "start " + start + ", repeat #" + i);
+                }
+            }
         }
 
         @Test

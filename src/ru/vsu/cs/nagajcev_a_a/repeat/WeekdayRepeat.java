@@ -26,13 +26,19 @@ public class WeekdayRepeat implements RepeatRule {
 
     @Override
     public LocalDate calculateNextDate(LocalDate date, int repeat) {
+        if (repeat < 0) throw new IllegalArgumentException("Аргумент repeat не может быть отрицательным");
+
         DayOfWeek startWeekday = this.weekdays.ceiling(date.getDayOfWeek());
+        if (startWeekday == null) startWeekday = this.weekdays.first();
+
         ArrayList<DayOfWeek> weekdayCycle = new ArrayList<>(this.weekdays);
         int index = weekdayCycle.indexOf(startWeekday);
-        index = (index + repeat) % weekdayCycle.size();
+        index = (int) ((index + (long) repeat) % weekdayCycle.size());
+
         int fullWeeks = repeat / weekdayCycle.size();
         LocalDate result = date.plusWeeks(fullWeeks);
         DayOfWeek weekday = weekdayCycle.get(index);
+
         int interval = weekday.getValue() - date.getDayOfWeek().getValue();
         if (interval < 0) interval += 7;
         return result.plusDays(interval);
