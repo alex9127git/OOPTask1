@@ -4,11 +4,12 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 public abstract class Event {
-    private String name;
-    private String description;
-    private LocalDate date;
+    protected String name;
+    protected String description;
+    protected LocalDate date;
 
     public Event(String name, String description, LocalDate date) {
+        Objects.requireNonNull(date, "Дата не может быть равно null");
         this.name = name;
         this.description = description;
         this.date = date;

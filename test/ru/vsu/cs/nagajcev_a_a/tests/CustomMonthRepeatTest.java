@@ -39,7 +39,7 @@ class CustomMonthRepeatTest {
 
     @Nested
     @Order(1)
-    @DisplayName("Базовое поведение: «второй вторник месяца»")
+    @DisplayName("Базовое поведение")
     class Basic {
 
         private final RepeatRule secondTuesday = new CustomMonthRepeat(SECOND, DayOfWeek.TUESDAY);
