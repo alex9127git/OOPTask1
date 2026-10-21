@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -840,6 +841,238 @@ class SeriesTest {
 
     @Nested
     @Order(6)
+    @DisplayName("Следующее вхождение после даты")
+    class NextAfter {
+
+        private RepeatingEvent weeklyFromMarch3(EndRule end) {
+            return new RepeatingEvent("Планёрка", "Еженедельная", MONDAY_MARCH_3, new NDayRepeat(7), end);
+        }
+
+        private Optional<LocalDate> on(LocalDate date) {
+            return Optional.of(date);
+        }
+
+        @Test
+        @DisplayName("Дата между вхождениями — ближайшее следующее")
+        void betweenOccurrences() {
+            assertEquals(on(march(10)), SeriesTest.weeklyFromMarch3().nextFrom(march(5)));
+        }
+
+        @Test
+        @DisplayName("День перед вхождением — это вхождение")
+        void dayBeforeOccurrence() {
+            assertEquals(on(march(10)), SeriesTest.weeklyFromMarch3().nextFrom(march(9)));
+        }
+
+        @Test
+        @DisplayName("Дата ровно на вхождении — само это вхождение")
+        void onOccurrenceReturnsIt() {
+            assertEquals(on(march(10)), SeriesTest.weeklyFromMarch3().nextFrom(march(10)));
+        }
+
+        @Test
+        @DisplayName("Дата до начала серии — первое вхождение")
+        void beforeSeriesStart() {
+            assertEquals(on(MONDAY_MARCH_3), SeriesTest.weeklyFromMarch3().nextFrom(LocalDate.of(2025, 1, 1)));
+        }
+
+        @Test
+        @DisplayName("Дата начала серии — первое вхождение")
+        void onSeriesStart() {
+            assertEquals(on(MONDAY_MARCH_3), SeriesTest.weeklyFromMarch3().nextFrom(MONDAY_MARCH_3));
+        }
+
+        @Test
+        @DisplayName("Цепочка вызовов со следующего дня проходит всю серию по порядку")
+        void chainingWalksSeries() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.addException(2, march(19));
+            event.deleteOccurrence(3);
+
+            List<LocalDate> walked = new ArrayList<>();
+            LocalDate current = LocalDate.of(2025, 2, 1);
+            for (int i = 0; i < 5; i++) {
+                current = event.nextFrom(current.plusDays(1)).orElseThrow();
+                walked.add(current);
+            }
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-19", "2025-03-31", "2025-04-07"), walked);
+        }
+
+        @Test
+        @DisplayName("Перенос вперёд через соседнее вхождение: ближайшим становится соседнее")
+        void movedForwardOverNeighbour() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.addException(1, march(20));
+
+            assertAll(
+                    () -> assertEquals(on(march(17)), event.nextFrom(march(5))),
+                    () -> assertEquals(on(march(20)), event.nextFrom(march(18)))
+            );
+        }
+
+        @Test
+        @DisplayName("Перенос назад: перенесённое вхождение находится по новой дате")
+        void movedBackward() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.addException(2, march(12));
+
+            assertAll(
+                    () -> assertEquals(on(march(12)), event.nextFrom(march(11))),
+                    () -> assertEquals(on(march(24)), event.nextFrom(march(13)))
+            );
+        }
+
+        @Test
+        @DisplayName("Дальнее вхождение, перенесённое далеко назад, обгоняет ближние")
+        void laterOccurrenceMovedFarBack() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.addException(5, march(5));
+
+            assertEquals(on(march(5)), event.nextFrom(march(4)));
+        }
+
+        @Test
+        @DisplayName("Дата, с которой вхождение перенесли, ему больше не принадлежит")
+        void originalDateOfMovedOccurrenceIsSkipped() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.addException(1, march(20));
+
+            assertEquals(on(march(17)), event.nextFrom(march(10)));
+        }
+
+        @Test
+        @DisplayName("Удалённое вхождение пропускается, в том числе когда дата ровно на нём")
+        void deletedOccurrenceIsSkipped() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.deleteOccurrence(1);
+
+            assertAll(
+                    () -> assertEquals(on(march(17)), event.nextFrom(march(5))),
+                    () -> assertEquals(on(march(17)), event.nextFrom(march(10)))
+            );
+        }
+
+        @Test
+        @DisplayName("Несколько удалённых подряд пропускаются")
+        void severalDeletedInARowAreSkipped() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.deleteOccurrence(1);
+            event.deleteOccurrence(2);
+            event.deleteOccurrence(3);
+
+            assertEquals(on(march(31)), event.nextFrom(march(5)));
+        }
+
+        @Test
+        @DisplayName("Далеко в будущем у бесконечной серии следующее вхождение есть")
+        void farFutureOfInfiniteSeries() {
+            assertEquals(on(LocalDate.of(2030, 1, 7)), SeriesTest.weeklyFromMarch3().nextFrom(LocalDate.of(2030, 1, 1)));
+        }
+
+        @Test
+        @DisplayName("AfterCount: после последнего вхождения — пусто")
+        void afterCountEnd() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(4));
+
+            assertAll(
+                    () -> assertEquals(on(march(24)), event.nextFrom(march(20))),
+                    () -> assertEquals(on(march(24)), event.nextFrom(march(24))),
+                    () -> assertEquals(Optional.empty(), event.nextFrom(march(25))),
+                    () -> assertEquals(Optional.empty(), event.nextFrom(LocalDate.of(2030, 1, 1)))
+            );
+        }
+
+        @Test
+        @DisplayName("AfterCount: последнее вхождение, перенесённое за конец, находится")
+        void afterCountMovedLastOccurrence() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(4));
+            event.addException(3, LocalDate.of(2025, 4, 2));
+
+            assertAll(
+                    () -> assertEquals(on(LocalDate.of(2025, 4, 2)), event.nextFrom(march(18))),
+                    () -> assertEquals(on(LocalDate.of(2025, 4, 2)), event.nextFrom(LocalDate.of(2025, 4, 2))),
+                    () -> assertEquals(Optional.empty(), event.nextFrom(LocalDate.of(2025, 4, 3)))
+            );
+        }
+
+        @Test
+        @DisplayName("AfterCount: удалённое последнее вхождение — пусто, серия не продлевается")
+        void afterCountDeletedLastOccurrence() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(4));
+            event.deleteOccurrence(3);
+
+            assertEquals(Optional.empty(), event.nextFrom(march(18)));
+        }
+
+        @Test
+        @DisplayName("Until: после конечной даты — пусто")
+        void untilEnd() {
+            RepeatingEvent event = weeklyFromMarch3(new Until(march(24)));
+
+            assertAll(
+                    () -> assertEquals(on(march(24)), event.nextFrom(march(23))),
+                    () -> assertEquals(on(march(24)), event.nextFrom(march(24))),
+                    () -> assertEquals(Optional.empty(), event.nextFrom(march(25)))
+            );
+        }
+
+        @Test
+        @DisplayName("Until: последнее вхождение, перенесённое за конечную дату, находится")
+        void untilMovedLastOccurrence() {
+            RepeatingEvent event = weeklyFromMarch3(new Until(march(24)));
+            event.addException(3, march(26));
+
+            assertEquals(on(march(26)), event.nextFrom(march(20)));
+        }
+
+        @Test
+        @Timeout(value = 1, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+        @DisplayName("LocalDate.MAX — пусто, без зависания")
+        void maxDateIsEmpty() {
+            assertEquals(Optional.empty(), SeriesTest.weeklyFromMarch3().nextFrom(LocalDate.MAX));
+        }
+
+        @Test
+        @DisplayName("null — NullPointerException")
+        void nullDateThrows() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+
+            assertEquals("Дата не может быть равна null",
+                    assertThrows(NullPointerException.class, () -> event.nextFrom(null)).getMessage());
+        }
+
+        @Test
+        @DisplayName("Совпадает с независимым расчётом (все правила, одиночные переносы, даты на вхождениях и между ними)")
+        void matchesOracle() {
+            LocalDate start = LocalDate.of(2024, 1, 31);
+            int[] shifts = {-25, 17, 45};
+
+            for (var entry : sampleRules().entrySet()) {
+                RepeatRule rule = entry.getValue();
+                for (int moved = 0; moved < 8; moved++) {
+                    for (int shift : shifts) {
+                        LocalDate target = rule.calculateNextDate(start, moved).plusDays(shift);
+                        if (isOccupiedByAnotherOccurrence(rule, start, moved, target)) continue;
+                        RepeatingEvent event = new RepeatingEvent("Событие", "", start, rule);
+                        event.addException(moved, target);
+
+                        for (LocalDate date = start.minusDays(3); date.isBefore(start.plusDays(120)); date = date.plusDays(1)) {
+                            List<LocalDate> later = oracle(rule, start, Map.of(moved, target),
+                                    date, date.plusDays(400));
+                            Optional<LocalDate> expected = later.isEmpty() ? Optional.empty() : Optional.of(later.get(0));
+
+                            assertEquals(expected, event.nextFrom(date),
+                                    entry.getKey() + ": вхождение #" + moved + " → " + target + ", начиная с " + date);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Nested
+    @Order(7)
     @DisplayName("Границы и исключения")
     class Errors {
 

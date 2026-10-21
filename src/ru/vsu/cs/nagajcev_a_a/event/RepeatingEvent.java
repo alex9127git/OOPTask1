@@ -70,7 +70,7 @@ public final class RepeatingEvent extends Event {
         if (!exceptions.containsKey(repeatId) &&
                 this.repeatRule.calculateNextDate(this.getDate(), repeatId).equals(newDate)) return;
         if (exceptions.containsKey(repeatId) && exceptions.get(repeatId).equals(newDate)) return;
-        
+
         if (!this.getSeries(newDate, newDate).isEmpty())
             throw new DateConflictException("На эту дату уже есть повтор этого события");
         exceptions.put(repeatId, newDate);
@@ -169,17 +169,11 @@ public final class RepeatingEvent extends Event {
             r++;
             date = repeatRule.calculateNextDate(this.getDate(), r);
         }
-        while (!date.isAfter(to)) {
+        boolean seriesFinished = false;
+        while (!date.isAfter(to) && !seriesFinished) {
             if (!exceptions.containsKey(r) && !deleted.contains(r)) {
-                if (this.endRule instanceof AfterCount) {
-                    if (r < ((AfterCount) this.endRule).count()) result.add(date);
-                    else break;
-                } else if (this.endRule instanceof Until) {
-                    if (!date.isAfter(((Until) this.endRule).endDate())) result.add(date);
-                    else break;
-                } else {
-                    result.add(date);
-                }
+                if (!isInSeries(r)) break;
+                result.add(date);
             }
             r++;
             date = repeatRule.calculateNextDate(this.getDate(), r);
@@ -201,13 +195,48 @@ public final class RepeatingEvent extends Event {
      */
     public boolean exists(int repeatId) {
         if (deleted.contains(repeatId)) return false;
-        if (this.endRule instanceof AfterCount) {
-            return repeatId < ((AfterCount) this.endRule).count();
-        } else if (this.endRule instanceof Until) {
-            LocalDate date = this.repeatRule.calculateNextDate(this.getDate(), repeatId);
-            return !date.isAfter(((Until) this.endRule).endDate());
-        } else {
-            return true;
+        return isInSeries(repeatId);
+    }
+
+    private boolean isInSeries(int repeatId) {
+        LocalDate date = this.repeatRule.calculateNextDate(this.getDate(), repeatId);
+        return switch (endRule) {
+            case AfterCount rule -> repeatId < rule.count();
+            case Until rule -> !date.isAfter(rule.endDate());
+            case Never ignored -> true;
+        };
+    }
+
+    /**
+     * Находит ближайшее вхождение серии в указанную дату или позже.
+     * Учитываются условие окончания, переносы и удаления: перенесённое вхождение ищется
+     * по новой дате, удалённое пропускается.
+     * <p>
+     * Чтобы пройти серию по порядку, следующий вызов делается со дня после найденной даты.
+     *
+     * @param date дата, начиная с которой ищется вхождение, включительно
+     * @return дата ближайшего вхождения или пустой {@link Optional}, если серия к этой дате закончилась
+     * @throws NullPointerException если {@code date} равна {@code null}
+     */
+    public Optional<LocalDate> nextFrom(LocalDate date) {
+        Objects.requireNonNull(date, "Дата не может быть равна null");
+        if (date.equals(LocalDate.MAX)) return Optional.empty();
+
+        LocalDate next = null;
+        for (int r = 0; isInSeries(r); r++) {
+            LocalDate original = this.repeatRule.calculateNextDate(this.getDate(), r);
+            if (!original.isBefore(date) && !exceptions.containsKey(r) && !deleted.contains(r)) {
+                next = original;
+                break;
+            }
         }
+
+        for (Map.Entry<Integer, LocalDate> move : exceptions.entrySet()) {
+            LocalDate moved = move.getValue();
+            if (exists(move.getKey()) && !moved.isBefore(date) && (next == null || moved.isBefore(next))) {
+                next = moved;
+            }
+        }
+        return Optional.ofNullable(next);
     }
 }
