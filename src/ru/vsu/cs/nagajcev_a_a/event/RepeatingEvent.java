@@ -169,8 +169,7 @@ public final class RepeatingEvent extends Event {
             r++;
             date = repeatRule.calculateNextDate(this.getDate(), r);
         }
-        boolean seriesFinished = false;
-        while (!date.isAfter(to) && !seriesFinished) {
+        while (!date.isAfter(to)) {
             if (!exceptions.containsKey(r) && !deleted.contains(r)) {
                 if (!isInSeries(r)) break;
                 result.add(date);

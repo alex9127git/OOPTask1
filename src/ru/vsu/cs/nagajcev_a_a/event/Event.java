@@ -98,6 +98,16 @@ public abstract sealed class Event permits SingleEvent, RepeatingEvent {
     }
 
     /**
+     * Возвращает преобразование события в строку.
+     *
+     * @return строка, описывающая событие
+     */
+    @Override
+    public String toString() {
+        return name + ": " + description;
+    }
+
+    /**
      * Сравнивает события по идентификатору. Два события с одинаковыми полями,
      * созданные отдельно, не равны.
      *
