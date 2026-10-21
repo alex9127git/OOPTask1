@@ -6,10 +6,15 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestClassOrder;
+import org.junit.jupiter.api.Timeout;
+import ru.vsu.cs.nagajcev_a_a.event.AfterCount;
+import ru.vsu.cs.nagajcev_a_a.event.Never;
 import ru.vsu.cs.nagajcev_a_a.event.RepeatingEvent;
+import ru.vsu.cs.nagajcev_a_a.event.EndRule;
+import ru.vsu.cs.nagajcev_a_a.event.Until;
+import ru.vsu.cs.nagajcev_a_a.event.DateConflictException;
 import ru.vsu.cs.nagajcev_a_a.repeat.CustomMonthRepeat;
 import ru.vsu.cs.nagajcev_a_a.repeat.CustomMonthRepeatPattern;
-import ru.vsu.cs.nagajcev_a_a.repeat.DateConflictException;
 import ru.vsu.cs.nagajcev_a_a.repeat.NDayRepeat;
 import ru.vsu.cs.nagajcev_a_a.repeat.NMonthRepeat;
 import ru.vsu.cs.nagajcev_a_a.repeat.NYearRepeat;
@@ -471,6 +476,16 @@ class SeriesTest {
         }
 
         @Test
+        @DisplayName("Отмена переноса у вхождения, которое не переносили, ничего не делает")
+        void removingAbsentMoveIsNoOp() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.removeException(2);
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
         @DisplayName("Отмена переноса, когда исходная дата уже занята, — DateConflictException и перенос остаётся")
         void removingMoveOntoOccupiedOriginalThrows() {
             RepeatingEvent event = weeklyFromMarch3();
@@ -485,6 +500,314 @@ class SeriesTest {
 
     @Nested
     @Order(4)
+    @DisplayName("Ограничение серии")
+    class Limits {
+
+        private RepeatingEvent weeklyFromMarch3(EndRule end) {
+            return new RepeatingEvent("Планёрка", "Еженедельная", MONDAY_MARCH_3, new NDayRepeat(7), end);
+        }
+
+        @Test
+        @DisplayName("Never — серия без конца, как у конструктора без ограничения")
+        void neverIsUnbounded() {
+            LocalDate farFrom = LocalDate.of(2030, 3, 1);
+            LocalDate farTo = LocalDate.of(2030, 3, 31);
+
+            assertEquals(series(SeriesTest.weeklyFromMarch3(), farFrom, farTo),
+                    series(weeklyFromMarch3(new Never()), farFrom, farTo));
+        }
+
+        @Test
+        @DisplayName("AfterCount(4) — ровно 4 вхождения")
+        void afterCountLimitsOccurrences() {
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17", "2025-03-24"),
+                    series(weeklyFromMarch3(new AfterCount(4)), MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("AfterCount(1) — только первое вхождение")
+        void afterCountOne() {
+            assertEquals(dates("2025-03-03"),
+                    series(weeklyFromMarch3(new AfterCount(1)), MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("После конца серии по количеству — пусто")
+        void afterCountIntervalAfterEndIsEmpty() {
+            assertTrue(weeklyFromMarch3(new AfterCount(4))
+                    .getSeries(LocalDate.of(2025, 3, 25), LocalDate.of(2030, 1, 1)).isEmpty());
+        }
+
+        @Test
+        @DisplayName("Количество считается по номерам: последнее вхождение можно перенести за исходный конец")
+        void lastOccurrenceMovedPastOriginalEndStays() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(4));
+            event.addException(3, LocalDate.of(2025, 4, 2));
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17", "2025-04-02"),
+                    series(event, MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Перенос не добавляет лишнего вхождения в конец")
+        void moveDoesNotExtendSeries() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(4));
+            event.addException(1, march(28));
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24", "2025-03-28"),
+                    series(event, MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Дата несуществующего вхождения за концом серии не считается занятой")
+        void dateBeyondCountIsNotOccupied() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(4));
+            event.addException(1, march(31));
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Удалённое вхождение расходует счётчик: серия не продлевается")
+        void deletedOccurrenceConsumesCount() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(4));
+            event.deleteOccurrence(1);
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24"),
+                    series(event, MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Until — конечная дата на вхождении включается")
+        void untilIsInclusive() {
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17", "2025-03-24"),
+                    series(weeklyFromMarch3(new Until(march(24))), MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Until — конечная дата между вхождениями")
+        void untilBetweenOccurrences() {
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17"),
+                    series(weeklyFromMarch3(new Until(march(23))), MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Until на дате начала — одно вхождение")
+        void untilOnStartDate() {
+            assertEquals(dates("2025-03-03"),
+                    series(weeklyFromMarch3(new Until(MONDAY_MARCH_3)), MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Until проверяется по исходной дате: последнее вхождение можно перенести за конечную дату")
+        void untilChecksOriginalDate() {
+            RepeatingEvent event = weeklyFromMarch3(new Until(march(24)));
+            event.addException(3, march(26));
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17", "2025-03-26"),
+                    series(event, MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Дата несуществующего вхождения после Until не считается занятой")
+        void dateBeyondUntilIsNotOccupied() {
+            RepeatingEvent event = weeklyFromMarch3(new Until(march(24)));
+            event.addException(1, march(31));
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, LocalDate.of(2025, 5, 1)));
+        }
+
+        @Test
+        @DisplayName("Перенос несуществующего вхождения — IllegalArgumentException")
+        void movingNonexistentOccurrenceThrows() {
+            RepeatingEvent byCount = weeklyFromMarch3(new AfterCount(4));
+            RepeatingEvent byDate = weeklyFromMarch3(new Until(march(24)));
+
+            assertAll(
+                    () -> assertThrows(IllegalArgumentException.class, () -> byCount.addException(4, march(5))),
+                    () -> assertThrows(IllegalArgumentException.class, () -> byDate.addException(4, march(5)))
+            );
+        }
+
+        @Test
+        @DisplayName("Ограниченная серия совпадает с первыми вхождениями бесконечной (все правила)")
+        void limitedSeriesMatchesOracle() {
+            LocalDate start = LocalDate.of(2024, 1, 31);
+            LocalDate from = LocalDate.of(2024, 1, 1);
+            LocalDate to = LocalDate.of(2025, 12, 31);
+
+            for (var entry : sampleRules().entrySet()) {
+                RepeatRule rule = entry.getValue();
+                List<LocalDate> unlimited = oracle(rule, start, Map.of(), from, to);
+                for (int count = 1; count <= 12; count++) {
+                    RepeatingEvent byCount = new RepeatingEvent("Событие", "", start, rule, new AfterCount(count));
+
+                    assertEquals(unlimited.subList(0, count), series(byCount, from, to),
+                            entry.getKey() + ": AfterCount(" + count + ")");
+                }
+                for (int days = 0; days < 200; days += 13) {
+                    LocalDate endDate = start.plusDays(days);
+                    RepeatingEvent byDate = new RepeatingEvent("Событие", "", start, rule, new Until(endDate));
+
+                    assertEquals(oracle(rule, start, Map.of(), from, endDate), series(byDate, from, to),
+                            entry.getKey() + ": Until(" + endDate + ")");
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("setEndRule обрезает серию, в том числе перенесённые вхождения за новым концом")
+        void setEndRuleHidesMovedOccurrencesBeyondNewEnd() {
+            RepeatingEvent event = SeriesTest.weeklyFromMarch3();
+            event.addException(4, march(28));
+            event.setEndRule(new AfterCount(3));
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @Timeout(value = 1, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+        @DisplayName("Огромная правая граница интервала не ломает ограниченную серию")
+        void hugeIntervalEndWithLimitedSeries() {
+            RepeatingEvent event = weeklyFromMarch3(new AfterCount(2));
+
+            assertEquals(dates("2025-03-03", "2025-03-10"), series(event, MARCH_1, LocalDate.MAX));
+        }
+
+        @Test
+        @DisplayName("AfterCount(0) и отрицательное количество — IllegalArgumentException")
+        void nonPositiveCountThrows() {
+            assertAll(
+                    () -> assertThrows(IllegalArgumentException.class, () -> new AfterCount(0)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> new AfterCount(-1))
+            );
+        }
+
+        @Test
+        @DisplayName("Until(null) и ограничение null в конструкторе — NullPointerException")
+        void nullLimitsThrow() {
+            assertAll(
+                    () -> assertThrows(NullPointerException.class, () -> new Until(null)),
+                    () -> assertThrows(NullPointerException.class, () -> weeklyFromMarch3(null))
+            );
+        }
+    }
+
+    @Nested
+    @Order(5)
+    @DisplayName("Удаление одного вхождения")
+    class DeleteOccurrence {
+
+        @Test
+        @DisplayName("Удаление убирает вхождение и не трогает остальные")
+        void deleteRemovesOnlyThatOccurrence() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.deleteOccurrence(2);
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Удаление первого вхождения")
+        void deleteFirstOccurrence() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.deleteOccurrence(0);
+
+            assertEquals(dates("2025-03-10", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Восстановление удалённого вхождения")
+        void undeleteRestoresOccurrence() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.deleteOccurrence(2);
+            event.undeleteOccurrence(2);
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Дата удалённого вхождения свободна для переноса")
+        void deletedDateIsFreeForMove() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.deleteOccurrence(2);
+            event.addException(1, march(17));
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Удаление перенесённого вхождения убирает его с новой даты")
+        void deleteMovedOccurrence() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.addException(1, march(20));
+            event.deleteOccurrence(1);
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Удаление перенесённого вхождения в ограниченной серии убирает его с новой даты")
+        void deleteMovedOccurrenceInLimitedSeries() {
+            RepeatingEvent event = new RepeatingEvent("Планёрка", "", MONDAY_MARCH_3, new NDayRepeat(7),
+                    new AfterCount(4));
+            event.addException(1, march(20));
+            event.deleteOccurrence(1);
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Перенос удалённого вхождения — IllegalArgumentException для любого ограничения")
+        void movingDeletedOccurrenceThrows() {
+            List<EndRule> endRules = List.of(new Never(), new AfterCount(4), new Until(march(24)));
+
+            for (EndRule endRule : endRules) {
+                RepeatingEvent event = new RepeatingEvent("Планёрка", "", MONDAY_MARCH_3, new NDayRepeat(7), endRule);
+                event.deleteOccurrence(1);
+
+                assertThrows(IllegalArgumentException.class, () -> event.addException(1, march(20)),
+                        endRule.toString());
+                assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24"),
+                        series(event, MARCH_1, march(24)), endRule.toString());
+            }
+        }
+
+        @Test
+        @DisplayName("Восстановление, когда исходная дата уже занята, — DateConflictException и вхождение остаётся удалённым")
+        void undeleteOntoOccupiedDateThrows() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.deleteOccurrence(2);
+            event.addException(1, march(17));
+
+            assertThrows(DateConflictException.class, () -> event.undeleteOccurrence(2));
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Удаление с отрицательным номером — IllegalArgumentException")
+        void negativeDeleteThrows() {
+            RepeatingEvent event = weeklyFromMarch3();
+
+            assertAll(
+                    () -> assertThrows(IllegalArgumentException.class, () -> event.deleteOccurrence(-1)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> event.undeleteOccurrence(-1))
+            );
+        }
+    }
+
+    @Nested
+    @Order(6)
     @DisplayName("Границы и исключения")
     class Errors {
 

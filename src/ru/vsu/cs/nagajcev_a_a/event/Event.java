@@ -3,13 +3,13 @@ package ru.vsu.cs.nagajcev_a_a.event;
 import java.time.LocalDate;
 import java.util.Objects;
 
-public abstract class Event {
-    protected String name;
-    protected String description;
-    protected LocalDate date;
+public abstract sealed class Event permits SingleEvent, RepeatingEvent {
+    private String name;
+    private String description;
+    private LocalDate date;
 
     public Event(String name, String description, LocalDate date) {
-        Objects.requireNonNull(date, "Дата не может быть равно null");
+        Objects.requireNonNull(date, "Дата не может быть равна null");
         this.name = name;
         this.description = description;
         this.date = date;
