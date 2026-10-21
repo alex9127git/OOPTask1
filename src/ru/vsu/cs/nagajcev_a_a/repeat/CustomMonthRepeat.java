@@ -4,10 +4,20 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Objects;
 
+/**
+ * Ежемесячное повторение в определённый по счёту день недели, например «второй вторник» или «последняя пятница месяца».
+ */
 public class CustomMonthRepeat implements RepeatRule {
     private final CustomMonthRepeatPattern pattern;
     private final DayOfWeek weekDay;
 
+    /**
+     * Создаёт правило вида «{@code pattern} {@code weekDay} месяца».
+     *
+     * @param pattern какой по счёту день недели брать, с начала или с конца месяца
+     * @param weekDay день недели
+     * @throws NullPointerException если один из аргументов равен {@code null}
+     */
     public CustomMonthRepeat(CustomMonthRepeatPattern pattern, DayOfWeek weekDay) {
         Objects.requireNonNull(weekDay, "День недели не может быть равен null");
         Objects.requireNonNull(pattern, "Паттерн повтора не может быть равен null");
@@ -34,6 +44,11 @@ public class CustomMonthRepeat implements RepeatRule {
         return result;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Если в месяце начала нужный день уже прошёл, первое вхождение будет в следующем месяце.
+     */
     @Override
     public LocalDate calculateNextDate(LocalDate date, int repeat) {
         Objects.requireNonNull(date, "Дата не может быть равна null");

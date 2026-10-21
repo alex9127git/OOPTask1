@@ -795,6 +795,38 @@ class SeriesTest {
         }
 
         @Test
+        @DisplayName("Восстановление неудалённого вхождения ничего не делает")
+        void undeleteOfNotDeletedIsNoOp() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.undeleteOccurrence(2);
+
+            assertEquals(dates("2025-03-03", "2025-03-10", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Восстановление неудалённого вхождения за концом серии не путает его с переносом на ту же дату")
+        void undeleteOfNotDeletedBeyondEndIsNoOp() {
+            RepeatingEvent event = new RepeatingEvent("Планёрка", "", MONDAY_MARCH_3, new NDayRepeat(7),
+                    new AfterCount(4));
+            event.addException(1, march(31));
+            event.undeleteOccurrence(4);
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-24", "2025-03-31"),
+                    series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
+        @DisplayName("Смена правила сбрасывает удаления")
+        void setRepeatRuleClearsDeletions() {
+            RepeatingEvent event = weeklyFromMarch3();
+            event.deleteOccurrence(1);
+            event.setRepeatRule(new NDayRepeat(14));
+
+            assertEquals(dates("2025-03-03", "2025-03-17", "2025-03-31"), series(event, MARCH_1, APRIL_1));
+        }
+
+        @Test
         @DisplayName("Удаление с отрицательным номером — IllegalArgumentException")
         void negativeDeleteThrows() {
             RepeatingEvent event = weeklyFromMarch3();
