@@ -4,12 +4,16 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 public abstract sealed class Event permits SingleEvent, RepeatingEvent {
+    private static long nextId = 1;
+
+    private EventId id;
     private String name;
     private String description;
     private LocalDate date;
 
     public Event(String name, String description, LocalDate date) {
         Objects.requireNonNull(date, "Дата не может быть равна null");
+        id = new EventId(nextId++);
         this.name = name;
         this.description = description;
         this.date = date;
@@ -39,17 +43,19 @@ public abstract sealed class Event permits SingleEvent, RepeatingEvent {
         this.date = date;
     }
 
+    public EventId getId() {
+        return id;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Event event = (Event) o;
-        return (Objects.equals(name, event.name) &&
-                Objects.equals(description, event.description) &&
-                Objects.equals(date, event.date));
+        return (Objects.equals(id, event.id));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, description, date);
+        return id.hashCode();
     }
 }
