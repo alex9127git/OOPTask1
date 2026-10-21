@@ -1,4 +1,4 @@
-package ru.vsu.cs.nagajcev_a_a.event;
+package ru.vsu.cs.nagajcev_a_a.endRule;
 
 import java.time.LocalDate;
 

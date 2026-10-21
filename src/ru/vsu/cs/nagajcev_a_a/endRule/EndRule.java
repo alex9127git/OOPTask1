@@ -1,4 +1,4 @@
-package ru.vsu.cs.nagajcev_a_a.event;
+package ru.vsu.cs.nagajcev_a_a.endRule;
 
 /**
  * Условие окончания серии повторяющегося события.

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestClassOrder;
-import ru.vsu.cs.nagajcev_a_a.event.AfterCount;
+import ru.vsu.cs.nagajcev_a_a.endRule.AfterCount;
 import ru.vsu.cs.nagajcev_a_a.event.Event;
 import ru.vsu.cs.nagajcev_a_a.event.EventId;
 import ru.vsu.cs.nagajcev_a_a.event.RepeatingEvent;

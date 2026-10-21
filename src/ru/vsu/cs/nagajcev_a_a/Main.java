@@ -1,5 +1,8 @@
 package ru.vsu.cs.nagajcev_a_a;
 
+import ru.vsu.cs.nagajcev_a_a.endRule.AfterCount;
+import ru.vsu.cs.nagajcev_a_a.endRule.Never;
+import ru.vsu.cs.nagajcev_a_a.endRule.Until;
 import ru.vsu.cs.nagajcev_a_a.event.*;
 import ru.vsu.cs.nagajcev_a_a.repeat.*;
 
